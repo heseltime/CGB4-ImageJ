@@ -14,7 +14,7 @@ import java.util.List;
 /**
  * Applies a region growing onto a given image. This requires a ROI in form of points. (Lab 7)
  */
-public class RegionGrowing implements PlugInFilter {
+public class RegionGrowing_ implements PlugInFilter {
 
     public static final int FG_VAL = 255;
     public static final int BG_VAL = 0;
@@ -57,32 +57,43 @@ public class RegionGrowing implements PlugInFilter {
         int lowerThresh = 100;
         int upperThresh = 150;
 
+/*
+        GenericDialog gd = new GenericDialog("User setup");
+        gd.addSlider("Tmin: ", 0, 255, lowerThresh);
+        gd.addSlider("Tmax: ", 0, 255, upperThresh);
+        gd.showDialog();
+        if(gd.wasCanceled()){
+            return;
+        }
+
+
+        lowerThresh = (int) gd.getNextNumber();
+        upperThresh = (int) gd.getNextNumber();
+*/
         int[][] segmentedImg = new int[width][height];
 
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
+        for(int x = 0; x < width; x++){
+            for(int y = 0; y < height; y++){
                 segmentedImg[x][y] = UNPROCESSED_VAL;
             }
         }
 
         List<Point> seedPoints = getSeedPoints();
 
-        if (!seedPoints.isEmpty()) {
+        if(!seedPoints.isEmpty()){
             Point seedPos = seedPoints.get(0);
             int initVal = inDataArrInt[seedPos.x][seedPos.y];
             double tolerance = (256 * 0.1) / 2.0;
-            lowerThresh = Math.max(0, (int) (initVal - tolerance + 0.5));
-            upperThresh = Math.min(255, (int) (initVal + tolerance + 0.5));
+            lowerThresh = Math.max(0, (int)(initVal - tolerance + 0.5));
+            upperThresh = Math.min(255, (int) (initVal + tolerance +0.5));
         }
-
-
         Deque<Point> processingStack = new ArrayDeque<>();
-        int fgCount = 0;
 
-        for (Point p : seedPoints) {
+        int fgCount = 0;
+        for(Point p : seedPoints) {
             int actVal = inDataArrInt[p.x][p.y];
-            if (segmentedImg[p.x][p.y] == UNPROCESSED_VAL) {
-                if (actVal >= lowerThresh && actVal <= upperThresh) {
+            if(segmentedImg[p.x][p.y] == UNPROCESSED_VAL){
+                if(actVal >= lowerThresh && actVal <= upperThresh) {
                     segmentedImg[p.x][p.y] = FG_VAL;
                     processingStack.push(p);
                     fgCount++;
@@ -92,18 +103,18 @@ public class RegionGrowing implements PlugInFilter {
             }
         }
 
-        while (!processingStack.isEmpty()) {
+        while(!processingStack.isEmpty()){
             Point actPos = processingStack.pop();
 
-            for (int xOffset = -1; xOffset <= 1; xOffset++) {
-                for (int yOffset = -1; yOffset <= 1; yOffset++) {
+            for(int xOffset = -1; xOffset <= 1; xOffset++){
+                for(int yOffset = -1; yOffset <= 1; yOffset++){
                     int nbX = actPos.x + xOffset;
                     int nbY = actPos.y + yOffset;
 
-                    if (nbX >= 0 && nbX < width && nbY >= 0 && nbY < height) {
+                    if(nbX >= 0 && nbX < width && nbY >= 0 && nbY < height) {
                         int actVal = inDataArrInt[nbX][nbY];
-                        if (segmentedImg[nbX][nbY] == UNPROCESSED_VAL) {
-                            if (actVal >= lowerThresh && actVal <= upperThresh) {
+                        if(segmentedImg[nbX][nbY] == UNPROCESSED_VAL) {
+                            if(actVal >= lowerThresh && actVal <= upperThresh){
                                 segmentedImg[nbX][nbY] = FG_VAL;
                                 processingStack.push(new Point(nbX, nbY));
                                 fgCount++;
@@ -116,15 +127,13 @@ public class RegionGrowing implements PlugInFilter {
             }
         }
 
-        for (int x = 0; x < width; x++) {
-            for (int y = 0; y < height; y++) {
-                if (segmentedImg[x][y] == UNPROCESSED_VAL) {
+        for(int x = 0; x < width; x++){
+            for(int y = 0; y < height; y++){
+                if(segmentedImg[x][y] == UNPROCESSED_VAL)
                     segmentedImg[x][y] = 0;
-                }
             }
         }
-
-        ImageJUtility.showNewImage(segmentedImg, width, height, "Region Growing");
+        ImageJUtility.showNewImage(segmentedImg, width,height,"Region Growing");
     } //run
 
     void showAbout() {

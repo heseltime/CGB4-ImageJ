@@ -9,3 +9,7 @@
 * reading color vs 30 mm reference mark, settle on approach
 * tests and refinement
 
+### sources
+
+* https://imagej.nih.gov/ij/plugins/color-inspector.html
+* https://home2.htw-berlin.de/~barthel/ImageJ/ColorInspector/help.htm
