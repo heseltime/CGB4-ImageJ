@@ -32,7 +32,7 @@ public class CoinCounter_ implements PlugInFilter {
 
 	// UTILITIES
 
-	public List<Point> getSeedPointsFromBinarySegmentation(int[][] transformedImage, int fg_val) {
+	private List<Point> getSeedPointsFromBinarySegmentation(int[][] transformedImage, int fg_val) {
 		int width = transformedImage.length;
 		int height = transformedImage[0].length;
 
@@ -45,12 +45,13 @@ public class CoinCounter_ implements PlugInFilter {
 			}
 		}
 
-		System.out.println("found " + seedPoints.size() + " seed points");
+		//System.out.println("found " + seedPoints.size() + " seed points");
 
 		return seedPoints;
 	}
 
-	int[][] regionGrow(int[][] initImg, int initVal, int neighborhood, List<Point> seedPoints) {
+	private int[][] regionGrow(int[][] initImg, int initVal, int neighborhood, double tolerance, List<Point> seedPoints) {
+		// seedPoints is basically the initial segmentation here
 		int width = initImg.length;
 		int height = initImg[0].length;
 
@@ -62,7 +63,6 @@ public class CoinCounter_ implements PlugInFilter {
 			}
 		}
 
-		double tolerance = (256 * 0.1) / 2.0;
 		int lowerThresh = Math.max(0, (int) (initVal - tolerance + 0.5));
 		int upperThresh = Math.min(255, (int) (initVal + tolerance + 0.5));
 
@@ -114,9 +114,70 @@ public class CoinCounter_ implements PlugInFilter {
 			}
 		}
 
-		System.out.println("added " + fgCount + " neighbors to foreground");
+		//System.out.println("added " + fgCount + " neighbors to foreground");
 
 		return segmentedImg;
+	}
+
+	private int[][] subtract(int[][] first, int[][] second, int targetVal) {
+		// subtract second from first
+		int width = first.length;
+		int height = first[0].length;
+
+		int[][] subtracted = new int[width][height];
+
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				if (second[x][y] >= targetVal) {
+					subtracted[x][y] = BG_VAL;
+				} else {
+					subtracted[x][y] = first[x][y];
+				}
+			}
+		}
+
+		return subtracted;
+	}
+
+	private int[][] regionLabel(int[][] segmentedImage, int backgroundVal, int targetVal) {
+		int width = segmentedImage.length;
+		int height = segmentedImage[0].length;
+
+		int[][] labeled = new int[width][height];
+
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				labeled[x][y] = UNPROCESSED_VAL;
+			}
+		}
+
+		// now go over the image: once a target value is encountered
+		// start region growing process with label 1, pause going throw the image!
+		// when done increment label, continue
+		// plausibility checks to add: minimum region size prob, shape? --> set those labels to background 0
+
+		return labeled;
+	}
+
+	private int countRegions(int[][] labeledRegions) {
+		int count = 0;
+		// not as simple as returning highest label id, because the regionLabel() process can produce gaps
+		// so regions need to be counted like
+
+		int width = labeledRegions.length;
+		int height = labeledRegions[0].length;
+
+		int[][] labeled = new int[width][height];
+
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				labeled[x][y] = UNPROCESSED_VAL;
+			}
+		}
+
+		// go through the image, for every encountered label do region growing, increment count
+
+		return count;
 	}
 
 	public void run(ImageProcessor ip) {
@@ -137,11 +198,13 @@ public class CoinCounter_ implements PlugInFilter {
 
 		// brightness will be increased in the following first thresholding step
 
+		/*
+		Part 1
+		 */
+
 		byte[] pixels = (byte[])imp.getProcessor().getPixels();
 		int width = ip.getWidth();
-		System.out.println(width);
 		int height = ip.getHeight();
-		System.out.println(height);
 
 
 		int[][] inDataArrInt = ImageJUtility.convertFrom1DByteArr(pixels, width, height);
@@ -203,69 +266,10 @@ public class CoinCounter_ implements PlugInFilter {
 		List<Point> seedPoints = new ArrayList<>();
 		seedPoints.add(seedPoint);
 
-		int[][] segmentedImg = new int[width][height];
+		// here region growing is used to fill out only the reference marker segment containing the seed point (on thresholded image)
+		int[][] segmentedImg = regionGrow(transformedImage, 255, 2, (256 * 0.2) / 2.0, seedPoints);
 
-		for (int x = 0; x < width; x++) {
-			for (int y = 0; y < height; y++) {
-				segmentedImg[x][y] = UNPROCESSED_VAL;
-			}
-		}
-
-		int initVal = 255;
-		double tolerance = (256 * 0.1) / 2.0;
-		int lowerThresh = Math.max(0, (int) (initVal - tolerance + 0.5));
-		int upperThresh = Math.min(255, (int) (initVal + tolerance + 0.5));
-
-
-		Deque<Point> processingStack = new ArrayDeque<>();
-		int fgCount = 0;
-
-		for (Point p : seedPoints) {
-			int actVal = transformedImage[p.x][p.y]; // not inDataArrInt[][]
-			if (segmentedImg[p.x][p.y] == UNPROCESSED_VAL) {
-				if (actVal >= lowerThresh && actVal <= upperThresh) {
-					segmentedImg[p.x][p.y] = FG_VAL;
-					processingStack.push(p);
-					fgCount++;
-				} else {
-					segmentedImg[p.x][p.y] = BG_VAL;
-				}
-			}
-		}
-
-		while (!processingStack.isEmpty()) {
-			Point actPos = processingStack.pop();
-
-			for (int xOffset = -1; xOffset <= 1; xOffset++) {
-				for (int yOffset = -1; yOffset <= 1; yOffset++) {
-					int nbX = actPos.x + xOffset;
-					int nbY = actPos.y + yOffset;
-
-					if (nbX >= 0 && nbX < width && nbY >= 0 && nbY < height) {
-						int actVal = transformedImage[nbX][nbY];
-						if (segmentedImg[nbX][nbY] == UNPROCESSED_VAL) {
-							if (actVal >= lowerThresh && actVal <= upperThresh) {
-								segmentedImg[nbX][nbY] = FG_VAL;
-								processingStack.push(new Point(nbX, nbY));
-								fgCount++;
-							} else {
-								segmentedImg[nbX][nbY] = BG_VAL;
-							}
-						}
-					}
-				}
-			}
-		}
-
-		for (int x = 0; x < width; x++) {
-			for (int y = 0; y < height; y++) {
-				if (segmentedImg[x][y] == UNPROCESSED_VAL) {
-					segmentedImg[x][y] = 0;
-				}
-			}
-		}
-
-		ImageJUtility.showNewImage(segmentedImg, width, height, "1.1 Binary Segmentation with Region Growing");
+		ImageJUtility.showNewImage(segmentedImg, width, height, "1.1 Binary Segmentation with Region Growing Reference Marker on Thresholded Image");
 
 		// Idea for 1.2
 		// use different thresholds to segment the coins incl the reference marker, region grow globally
@@ -282,24 +286,22 @@ public class CoinCounter_ implements PlugInFilter {
 		int[][] transformedImageCoins = ImageTransformationFilter.getTransformedImage(inDataArrInt, width, height, binaryThresholdTFCoins);
 
 		// Uncomment to show intermediate processing step
-		ImageJUtility.showNewImage(transformedImageCoins, width, height, "1.2 Binary Segmentation for the Coins: First Pass with Thresholding");
+		//ImageJUtility.showNewImage(transformedImageCoins, width, height, "1.2 Binary Segmentation for the Coins: First Pass with Thresholding");
 
-		// apply region growing with some plausibility checks
-		// issues: lower edge of image where bg is darkest is segmented, reference marker is still in
+		/*
+		// region growing test
 		List<Point> seedPointsCoins;
 		int[][] segmentedImgCoins = transformedImageCoins;
 
-		// iterative region growing
-		for (int i = 0; i < 10; i++) {
-			seedPointsCoins = getSeedPointsFromBinarySegmentation(segmentedImgCoins, fg_val);
-			segmentedImgCoins = regionGrow(segmentedImgCoins, fg_val, 2, seedPointsCoins);
-		}
-
-		ImageJUtility.showNewImage(segmentedImgCoins, width, height, "1.2 Binary Segmentation with Region Growing");
+		seedPointsCoins = getSeedPointsFromBinarySegmentation(segmentedImgCoins, fg_val);
+		segmentedImgCoins = regionGrow(inDataArrInt, 80, 2,  (256 * 0.2) / 2.0, seedPointsCoins);
+		// closing could be helpful for this binary thresholding step, but seems to come in part 2
+		*/
 
 		// subtract reference marker
-		// TODO
+		int[][] segmentedImgCoinsSubtracted = subtract(transformedImageCoins, segmentedImg, fg_val);
 
+		ImageJUtility.showNewImage(segmentedImgCoinsSubtracted, width, height, "1.2 Binary Segmentation with Region Growing, Reference Subtracted");
 
 		// Idea for 1.3
 		// the marker is 30 mm wide: this length was actually measured in 1.1 (longest) and can now be put to good use
@@ -308,7 +310,30 @@ public class CoinCounter_ implements PlugInFilter {
 		System.out.println("referenceScalingFactor (ANSWER to 1.3): " + referenceScalingFactor);
 		// i.e. a length in pixels / referenceScalingFactor is its length in mm
 
+		/*
+		Part 2
+		 */
+
+		// approach idea
+		// research region labeling and glasbey lut
+		// find regions, create image matrix with label entries for x-y-values?
+		// per label, calculate mean color?
+		// compare to LUT taken from manual anylaysis of different coin types
+		// weight coloring and scale somehow to come up with best guess in an additive (?) function
+		//			(w1 * c + w2 * c / 2) = ? --> ranges in LUT (Part 3)
+		// encapsulate with algorithm for coins, closing and opening (apply in part 1?)
+		// output count
+		// to get sizes, go through label map and count widths, created dictionary structure of label to width
+
+		int[][] labeledRegions = regionLabel(segmentedImgCoinsSubtracted, bg_val, fg_val);
+		int regionCount = countRegions(labeledRegions);
+		System.out.println(regionCount + " labels applied (ANSWER 1 to Task 2.3");
+
+		// TODO: Answer 2, widths per label
+
 	} //run
+
+
 
 	void showAbout() {
 		IJ.showMessage("About Template_...",
