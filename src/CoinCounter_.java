@@ -2,10 +2,13 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.gui.GenericDialog;
 import ij.plugin.ContrastEnhancer;
+import ij.plugin.LutLoader;
 import ij.plugin.filter.PlugInFilter;
+import ij.process.ByteProcessor;
 import ij.process.ImageProcessor;
 
 import ij.process.ImageConverter;
+import ij.process.LUT;
 
 import java.awt.*;
 import java.util.ArrayDeque;
@@ -180,6 +183,17 @@ public class CoinCounter_ implements PlugInFilter {
 		return count;
 	}
 
+	private void show2DGrayscaleWithGlasbey(int[][] gray2D, int width, int height) {
+		byte[] gray1D = ImageJUtility.convertFrom2DIntArr(gray2D, width, height);
+		ImageProcessor outImgProc = new ByteProcessor(width, height);
+		outImgProc.setPixels(gray1D);
+
+		ImagePlus imp = new ImagePlus("Glasbey LUT Representation", outImgProc);
+
+		IJ.run(imp, "glasbey","");
+		imp.show();
+	}
+
 	public void run(ImageProcessor ip) {
 		// Pre-Processing:
 		// from tests with Color Inspector: increased contrast (with brightness) leads to sharper edges to help with thresholding
@@ -327,9 +341,12 @@ public class CoinCounter_ implements PlugInFilter {
 
 		int[][] labeledRegions = regionLabel(segmentedImgCoinsSubtracted, bg_val, fg_val);
 		int regionCount = countRegions(labeledRegions);
-		System.out.println(regionCount + " labels applied (ANSWER 1 to Task 2.3");
+		System.out.println(regionCount + " labels applied (ANSWER 1 to Task 2.3)");
 
 		// TODO: Answer 2, widths per label
+
+		// test glasby
+		show2DGrayscaleWithGlasbey(segmentedImgCoinsSubtracted, width, height);
 
 	} //run
 
