@@ -239,7 +239,7 @@ public class CoinCounter_ implements PlugInFilter {
 						}
 					}
 
-					// finally increase the label id
+					// finally increase the label
 					currentRegionLabel += 1;
 
 					// END one point region grow
