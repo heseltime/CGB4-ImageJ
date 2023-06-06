@@ -142,9 +142,15 @@ public class CoinCounter_ implements PlugInFilter {
 		return subtracted;
 	}
 
-	private int[][] regionLabel(int[][] segmentedImage, int backgroundVal, int targetVal) {
-		int width = segmentedImage.length;
-		int height = segmentedImage[0].length;
+	private int[][] regionLabel(int[][] segmentedImg) {
+		// this function was designed for black (background) and white (target) segmented images
+		int targetVal = 255;
+		int backgroundVal = 0;
+
+		int neighborhood = 1; // hyperparameter
+
+		int width = segmentedImg.length;
+		int height = segmentedImg[0].length;
 
 		int[][] labeled = new int[width][height];
 
@@ -158,6 +164,77 @@ public class CoinCounter_ implements PlugInFilter {
 		// start region growing process with label 1, pause going throw the image!
 		// when done increment label, continue
 		// plausibility checks to add: minimum region size prob, shape? --> set those labels to background 0
+
+		int currentRegionLabel = 1;
+
+		// go over the while image
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				if (segmentedImg[x][y] >= targetVal && currentRegionLabel < 255 && labeled[x][y] == UNPROCESSED_VAL) {
+					// segmented spot found, id still within range, and equivalent point in the output labeled image is not yet worked!
+
+					// START one point region grow from here
+					List<Point> seedPoints = new ArrayList<>();
+					seedPoints.add(new Point(x, y));
+
+					// region growing for this label id now, i.e. setting the region to this label value
+
+					Deque<Point> processingStack = new ArrayDeque<>();
+					int fgCount = 0;
+
+					// for plausibility check later (possible reversion)
+					//Deque<Point> processedStack = new ArrayDeque<>();
+
+					// analogously to region growing
+					for (Point p : seedPoints) {
+						int actVal = segmentedImg[p.x][p.y];
+						if (actVal >= targetVal) {
+							labeled[p.x][p.y] = currentRegionLabel;
+							processingStack.push(p);
+							fgCount++;
+						} else {
+							labeled[p.x][p.y] = BG_VAL;
+						}
+					}
+
+					while (!processingStack.isEmpty()) {
+						Point actPos = processingStack.pop();
+
+						for (int xOffset = -neighborhood; xOffset <= neighborhood; xOffset++) {
+							for (int yOffset = -neighborhood; yOffset <= neighborhood; yOffset++) {
+								int nbX = actPos.x + xOffset;
+								int nbY = actPos.y + yOffset;
+
+								if (nbX >= 0 && nbX < width && nbY >= 0 && nbY < height) {
+									int actVal = segmentedImg[nbX][nbY];
+									if (labeled[nbX][nbY] == UNPROCESSED_VAL) {
+										if (actVal >= targetVal) {
+											labeled[nbX][nbY] = currentRegionLabel;
+											processingStack.push(new Point(nbX, nbY));
+											fgCount++;
+										} else {
+											labeled[nbX][nbY] = BG_VAL;
+										}
+									}
+								}
+							}
+						}
+
+					}
+
+					// plausibility
+					// pop to processedStack to reset labeled in case fgCount below a certain threshold!
+
+					// finally increase the label id
+					currentRegionLabel += 1;
+
+					// END one point region grow
+				} else if (segmentedImg[x][y] == backgroundVal) {
+					labeled[x][y] = backgroundVal;
+				}
+
+			}
+		}
 
 		return labeled;
 	}
@@ -339,14 +416,11 @@ public class CoinCounter_ implements PlugInFilter {
 		// output count
 		// to get sizes, go through label map and count widths, created dictionary structure of label to width
 
-		int[][] labeledRegions = regionLabel(segmentedImgCoinsSubtracted, bg_val, fg_val);
-		int regionCount = countRegions(labeledRegions);
+		int[][] labeledImg = regionLabel(segmentedImgCoinsSubtracted);
+		int regionCount = countRegions(labeledImg);
 		System.out.println(regionCount + " labels applied (ANSWER 1 to Task 2.3)");
 
-		// TODO: Answer 2, widths per label
-
-		// test glasby
-		show2DGrayscaleWithGlasbey(segmentedImgCoinsSubtracted, width, height);
+		show2DGrayscaleWithGlasbey(labeledImg, width, height);
 
 	} //run
 
