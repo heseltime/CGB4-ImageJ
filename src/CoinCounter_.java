@@ -183,7 +183,7 @@ public class CoinCounter_ implements PlugInFilter {
 					int fgCount = 0;
 
 					// for plausibility check later (possible reversion)
-					//Deque<Point> processedStack = new ArrayDeque<>();
+					Deque<Point> processedStack = new ArrayDeque<>();
 
 					// analogously to region growing
 					for (Point p : seedPoints) {
@@ -211,6 +211,10 @@ public class CoinCounter_ implements PlugInFilter {
 										if (actVal >= targetVal) {
 											labeled[nbX][nbY] = currentRegionLabel;
 											processingStack.push(new Point(nbX, nbY));
+
+											// add as processed actually processed points
+											processedStack.push(new Point(nbX, nbY));
+
 											fgCount++;
 										} else {
 											labeled[nbX][nbY] = BG_VAL;
@@ -222,8 +226,18 @@ public class CoinCounter_ implements PlugInFilter {
 
 					}
 
-					// plausibility
-					// pop to processedStack to reset labeled in case fgCount below a certain threshold!
+					// plausibility check based on fgCount, i.e. labeled region size
+
+					//System.out.println(currentRegionLabel + " labeled region has size " + fgCount);
+					// many regions that are not even visible in the 10 - 20 range!
+
+					if (fgCount < 10000) {
+						// revert to background (not a valid region)
+						while (!processedStack.isEmpty()) {
+							Point p = processedStack.pop();
+							labeled[p.x][p.y] = BG_VAL;
+						}
+					}
 
 					// finally increase the label id
 					currentRegionLabel += 1;
@@ -247,11 +261,14 @@ public class CoinCounter_ implements PlugInFilter {
 		int width = labeledRegions.length;
 		int height = labeledRegions[0].length;
 
-		int[][] labeled = new int[width][height];
+		List<Integer> seen = new ArrayList<>();
 
 		for (int x = 0; x < width; x++) {
 			for (int y = 0; y < height; y++) {
-				labeled[x][y] = UNPROCESSED_VAL;
+				if (labeledRegions[x][y] != BG_VAL && !seen.contains(labeledRegions[x][y])) {
+					count += 1;
+					seen.add(labeledRegions[x][y]);
+				}
 			}
 		}
 
