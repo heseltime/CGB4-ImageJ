@@ -249,6 +249,8 @@ public class CoinCounter_ implements PlugInFilter {
 
 						// don't increase the label if set
 						// proper functioning if |artefacts| > 255 actually requires this
+						//		because of artefacts, I ended up with unprocessed regions otherwise
+						//		in the logic of this method
 						// side effect is that there are no gaps, which is good actually
 					} else {
 						// finally increase the label
@@ -267,8 +269,8 @@ public class CoinCounter_ implements PlugInFilter {
 
 	private int countRegions(int[][] labeledRegions) {
 		int count = 0;
-		// not as simple as returning highest label id, because the regionLabel() process can produce gaps
-		// so regions need to be counted like
+		// I implemented no gap labeling, so it would be as simple as returning highest label encountered
+		// but here is a more generic way that could also deal with gaps
 
 		int width = labeledRegions.length;
 		int height = labeledRegions[0].length;
@@ -289,8 +291,9 @@ public class CoinCounter_ implements PlugInFilter {
 
 	private Map<Integer, Integer> calculateWidths(int[][] labeledImg) {
 		Map<Integer, Integer> widthsPerLabel = new HashMap<>();
+		Map<Integer, Integer> diametersPerLabel = new HashMap<>();
 
-		// idea: count the regions to the map, per label, then calculate diamter from the count (equiv. area)
+		// idea: count the regions to the map, per label, then calculate diameter from the count (equiv. area)
 
 		int width = labeledImg.length;
 		int height = labeledImg[0].length;
@@ -306,7 +309,14 @@ public class CoinCounter_ implements PlugInFilter {
 			}
 		}
 
-		return widthsPerLabel;
+		for (Map.Entry<Integer, Integer> areaSet : widthsPerLabel.entrySet()) {
+			int area = areaSet.getValue();
+			double radius = Math.sqrt(area / Math.PI);
+			Integer diameter = (int) (2 * radius + 0.5); // in pixels
+			diametersPerLabel.put(areaSet.getKey(), diameter);
+		}
+
+		return diametersPerLabel;
 	}
 
 
@@ -474,7 +484,7 @@ public class CoinCounter_ implements PlugInFilter {
 		// closing needed for accurate results
 		Map<Integer, Integer> widthsPerLabel = calculateWidths(labeledImg);
 
-		System.out.println(widthsPerLabel + " diameters per label (ANSWER 2 to Task 2.3)");
+		System.out.println(widthsPerLabel + " diameters (in pixels) per label (ANSWER 2 to Task 2.3)");
 
 		show2DGrayscaleWithGlasbey(labeledImg, width, height);
 
