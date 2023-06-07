@@ -11,9 +11,7 @@ import ij.process.ImageConverter;
 import ij.process.LUT;
 
 import java.awt.*;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
+import java.util.*;
 import java.util.List;
 
 /**
@@ -185,6 +183,9 @@ public class CoinCounter_ implements PlugInFilter {
 					// for plausibility check later (possible reversion)
 					Deque<Point> processedStack = new ArrayDeque<>();
 
+					// another criterion for plausibility
+					boolean touchesEdgeOfImg = false;
+
 					// analogously to region growing
 					for (Point p : seedPoints) {
 						int actVal = segmentedImg[p.x][p.y];
@@ -220,6 +221,9 @@ public class CoinCounter_ implements PlugInFilter {
 											labeled[nbX][nbY] = BG_VAL;
 										}
 									}
+								} else if (nbX == 0 || nbX == width - 1 || nbY == 0 || nbY == height - 1) {
+									// grown region touches edge
+									touchesEdgeOfImg = true;
 								}
 							}
 						}
@@ -231,7 +235,7 @@ public class CoinCounter_ implements PlugInFilter {
 					//System.out.println(currentRegionLabel + " labeled region has size " + fgCount);
 					// many regions that are not even visible in the 10 - 20 range!
 
-					if (fgCount < 10000) {
+					if (fgCount < 10000 || touchesEdgeOfImg) {
 						// revert to background (not a valid region)
 						while (!processedStack.isEmpty()) {
 							Point p = processedStack.pop();
@@ -242,11 +246,14 @@ public class CoinCounter_ implements PlugInFilter {
 						for (Point p : seedPoints) {
 							labeled[p.x][p.y] = BG_VAL;
 						}
+
+						// don't increase the label if set
+						// proper functioning if |artefacts| > 255 actually requires this
+						// side effect is that there are no gaps, which is good actually
+					} else {
+						// finally increase the label
+						currentRegionLabel += 1;
 					}
-
-					// finally increase the label
-					currentRegionLabel += 1;
-
 					// END one point region grow
 				} else if (segmentedImg[x][y] == backgroundVal) {
 					labeled[x][y] = backgroundVal;
@@ -277,10 +284,31 @@ public class CoinCounter_ implements PlugInFilter {
 			}
 		}
 
-		// go through the image, for every encountered label do region growing, increment count
-
 		return count;
 	}
+
+	private Map<Integer, Integer> calculateWidths(int[][] labeledImg) {
+		Map<Integer, Integer> widthsPerLabel = new HashMap<>();
+
+		// idea: count the regions to the map, per label, then calculate diamter from the count (equiv. area)
+
+		int width = labeledImg.length;
+		int height = labeledImg[0].length;
+
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				if (labeledImg[x][y] != BG_VAL && widthsPerLabel.containsKey(labeledImg[x][y])) {
+					Integer currentCount = widthsPerLabel.get(labeledImg[x][y]);
+					widthsPerLabel.put(labeledImg[x][y], currentCount + 1);
+				} else  {
+					widthsPerLabel.put(labeledImg[x][y], 1);
+				}
+			}
+		}
+
+		return widthsPerLabel;
+	}
+
 
 	private void show2DGrayscaleWithGlasbey(int[][] gray2D, int width, int height) {
 		byte[] gray1D = ImageJUtility.convertFrom2DIntArr(gray2D, width, height);
@@ -440,17 +468,17 @@ public class CoinCounter_ implements PlugInFilter {
 
 		int[][] labeledImg = regionLabel(segmentedImgCoinsSubtracted);
 		int regionCount = countRegions(labeledImg);
-		// similar idea to derive width in countRegions context
-		// count pixel size, derive diameter mathematically based on area
-		// but requires closing (accurate area). idea of map for labels to diameter
 
 		System.out.println(regionCount + " labels applied (ANSWER 1 to Task 2.3)");
+
+		// closing needed for accurate results
+		Map<Integer, Integer> widthsPerLabel = calculateWidths(labeledImg);
+
+		System.out.println(widthsPerLabel + " diameters per label (ANSWER 2 to Task 2.3)");
 
 		show2DGrayscaleWithGlasbey(labeledImg, width, height);
 
 	} //run
-
-
 
 	void showAbout() {
 		IJ.showMessage("About Template_...",
