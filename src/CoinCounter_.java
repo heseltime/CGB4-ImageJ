@@ -237,6 +237,11 @@ public class CoinCounter_ implements PlugInFilter {
 							Point p = processedStack.pop();
 							labeled[p.x][p.y] = BG_VAL;
 						}
+
+						// don't forget seedpoint!
+						for (Point p : seedPoints) {
+							labeled[p.x][p.y] = BG_VAL;
+						}
 					}
 
 					// finally increase the label
@@ -435,6 +440,10 @@ public class CoinCounter_ implements PlugInFilter {
 
 		int[][] labeledImg = regionLabel(segmentedImgCoinsSubtracted);
 		int regionCount = countRegions(labeledImg);
+		// similar idea to derive width in countRegions context
+		// count pixel size, derive diameter mathematically based on area
+		// but requires closing (accurate area). idea of map for labels to diameter
+
 		System.out.println(regionCount + " labels applied (ANSWER 1 to Task 2.3)");
 
 		show2DGrayscaleWithGlasbey(labeledImg, width, height);
