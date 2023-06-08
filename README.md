@@ -1,6 +1,6 @@
-# CGB4 2023, Jack Heseltine
+# CGB4 2023, Jack Heseltine: CoinCounter_ plugin
 
-## Informal progress notes on coin value counting from image problem
+## Informal progress notes and results on coin value counting from image problem
 
 ### draft steps
 
