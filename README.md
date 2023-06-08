@@ -16,6 +16,8 @@ In-code, as specified.
 ### image I/O (coins4 example: correctly classified)
 
 ![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/5963aab9-aac7-4d83-8320-a865f72ab87c)
+![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/451149f4-7db9-414d-bf9c-0b2ebee307fb)
+
 
 
 ### console I/O (coins4 example: correctly classified)
