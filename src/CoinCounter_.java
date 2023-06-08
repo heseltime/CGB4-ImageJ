@@ -26,7 +26,7 @@ public class CoinCounter_ implements PlugInFilter {
 	// .
 	// .
 	//
-	// working full folder structure on GitHub:
+	// working full folder structure on GitHub, also with the test images and processing documented:
 	// 		https://github.com/heseltime/CGB4-ImageJ
 
 	// GLOBALS and setup
