@@ -31,6 +31,8 @@ Final sum is 1 euro and 64 cents (1,64 EURO) (ANSWER to Task 3)
 
 ### image I/O (coins5 example: correctly classified)
 
+![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/11dd963c-f1f4-40fa-a3f4-2909715aa6f3)
+
 
 ### console I/O (coins5 example: correctly classified)
 
