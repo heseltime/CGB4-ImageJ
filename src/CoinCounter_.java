@@ -4,11 +4,7 @@ import ij.gui.GenericDialog;
 import ij.plugin.ContrastEnhancer;
 import ij.plugin.LutLoader;
 import ij.plugin.filter.PlugInFilter;
-import ij.process.ByteProcessor;
-import ij.process.ImageProcessor;
-
-import ij.process.ImageConverter;
-import ij.process.LUT;
+import ij.process.*;
 
 import java.awt.*;
 import java.util.*;
@@ -19,10 +15,30 @@ import java.util.List;
  */
 public class CoinCounter_ implements PlugInFilter {
 
+	// REQURIES LUT folder on same level as src (for Glasby to work)
+	//
+	// - src
+	// --- CoinCounter_
+	// --- ...
+	// -- luts
+	// -- macros
+	// .
+	// .
+	// .
+	//
+	// working full folder structure on GitHub:
+	// 		https://github.com/heseltime/CGB4-ImageJ
+
+	// GLOBALS and setup
+
 	public static final int FG_VAL = 255;
 	public static final int BG_VAL = 0;
 	public static final int UNPROCESSED_VAL = -1;
+
+	// hyperparameters that might be tweaked (segmentation and classification)
 	public static final int BRIGHTNESS_INCREASE = 80; // in pixels
+	public static final float RED_TO_GREEN_CUTOFF = 1.2F; // for classification: close to one is less strict
+		// about "bronziness"
 
 	public int setup(String arg, ImagePlus imp) {
 		if (arg.equals("about"))
@@ -331,11 +347,154 @@ public class CoinCounter_ implements PlugInFilter {
 		imp.show();
 	}
 
+	private Map<Integer, Integer[]> getMeanRGBs(int[][] labeledImg, ImagePlus imp) {
+		Map<Integer, Integer[]> meanRGBsPerLabel = new HashMap<>(); // per label, array of three values
+
+		// aux
+		Map<Integer, Integer> pointsSeenPerLabel = new HashMap<>();
+
+		// go over image, calculate running mean per pixel (three channels)
+		int[] pixels = (int[]) imp.getProcessor().getPixels();
+
+		int width = imp.getWidth();
+		int height = imp.getHeight();
+
+		// test rgb conversions: this is the best I could do, but not sure if the correct (easiest) way
+		// see https://imagej.nih.gov/ij/docs/pdfs/tutorial11.pdf p 10
+		/*System.out.println(pixels.length + " total pixels");
+		System.out.println("pixel before byte conversion " + pixels[1]);
+		int pix = 0xff & pixels[1];
+		pixels[1] = (byte) (pix & 0xff);
+		System.out.println("pixel after byte conversion " + pixels[1]);
+
+		int red = (int)(pixels[1] & 0xff0000)>>16;
+		System.out.println("red part " + red);
+		int green = (int)(pixels[1] & 0x00ff00)>>8;
+		System.out.println("green part " + green);
+		int blue = (int)(pixels[1] & 0x0000ff);
+		System.out.println("blue part " + blue);*/
+
+		// now
+		for (int x = 0; x < width; x++) {
+			for (int y = 0; y < height; y++) {
+				// pixel under consideration
+				int pixel = imp.getProcessor().getPixel(x, y);
+				int red = (int)(pixel & 0xff0000)>>16;
+				int green = (int)(pixel & 0x00ff00)>>8;
+				int blue = (int)(pixel & 0x0000ff);
+
+				//System.out.println("original pixel values " + green); // works
+
+				if (labeledImg[x][y] != BG_VAL && meanRGBsPerLabel.containsKey(labeledImg[x][y])) {
+					// previously calculated values
+					int redBucketCurrent = meanRGBsPerLabel.get(labeledImg[x][y])[0];
+					int greenBucketCurrent = meanRGBsPerLabel.get(labeledImg[x][y])[1];
+					int blueBucketCurrent = meanRGBsPerLabel.get(labeledImg[x][y])[2];
+
+					// need number of points so far to calculate accurate mean, and can update this value
+					int pointsSeenSoFar = pointsSeenPerLabel.get(labeledImg[x][y]);
+					pointsSeenPerLabel.put(labeledImg[x][y], pointsSeenSoFar + 1);
+
+					// calculation rules follow
+					// se https://math.stackexchange.com/questions/106313/regular-average-calculated-accumulatively
+					int newRedBucket = redBucketCurrent + red;
+					int newGreenBucket = greenBucketCurrent + green;
+					int newBlueBucket = blueBucketCurrent + blue;
+
+					// update
+					meanRGBsPerLabel.put(labeledImg[x][y], new Integer[]{newRedBucket, newGreenBucket, newBlueBucket});
+				} else  {
+					Integer[] newEntry = {red, green, blue};
+					meanRGBsPerLabel.put(labeledImg[x][y], newEntry);
+					pointsSeenPerLabel.put(labeledImg[x][y], 1);
+				}
+			}
+		}
+
+		// dividing step to get the means from the buckets
+		for (Map.Entry<Integer, Integer[]> meanSet : meanRGBsPerLabel.entrySet()) {
+			int label = meanSet.getKey();
+			int redMean = (int) meanSet.getValue()[0] / pointsSeenPerLabel.get(label);
+			int greenMean = (int) meanSet.getValue()[1] / pointsSeenPerLabel.get(label);
+			int blueMean = (int) (int) meanSet.getValue()[2] / pointsSeenPerLabel.get(label);
+
+			meanRGBsPerLabel.put(label, new Integer[]{redMean,greenMean,blueMean});
+		}
+
+		return meanRGBsPerLabel;
+	}
+
+	private Map<Integer, Integer> convertWidths(Map<Integer, Integer> widthsPerLabel, double scalingFactor) {
+		Map<Integer, Integer> widthsPerLabelInMM = new HashMap<>();
+
+		for (Map.Entry<Integer, Integer> valueSet : widthsPerLabel.entrySet()) {
+			int label = valueSet.getKey();
+			int diameterInMM = (int) (valueSet.getValue() / scalingFactor);
+
+			widthsPerLabelInMM.put(label, diameterInMM);
+		}
+
+		return widthsPerLabelInMM;
+	}
+
+	private Map<Integer, Integer> classifyCoins(Map<Integer, Integer> widthsPerLabel, Map<Integer, Integer[]> meanRGBPerLabel) {
+		Map<Integer, Integer> centValuesPerCoinLabel = new HashMap<>();
+
+		for (Map.Entry<Integer, Integer[]> meanSet : meanRGBPerLabel.entrySet()) {
+			int label = meanSet.getKey();
+
+			// first classification step (1) on basis of color and particularly the Red channel, or rather,
+			//		the relative distance between red and green
+			//		comparison to blue might also work fine, blue seems to vary less however
+			//		see analysis in run method
+			float distance = (float) meanSet.getValue()[0] / meanSet.getValue()[1]; // > 1 => more red than green
+			boolean looksBronze = false;
+			if (distance > RED_TO_GREEN_CUTOFF) // the higher the value, the less sensitive to more red
+				looksBronze = true;
+
+			// the rest of the classification is about diameter
+			//		this part is static/absolute, from tests on the given images
+			int diameter = widthsPerLabel.get(label);
+
+			int valueInCents;
+
+			if (looksBronze && diameter <= 16)
+				valueInCents = 1;
+			else if (looksBronze && diameter < 19)
+				valueInCents = 2;
+			else if (looksBronze)
+				valueInCents = 5;
+			else if (!looksBronze && diameter <= 19)
+				valueInCents = 10;
+			else if (!looksBronze && diameter <= 21)
+				valueInCents = 20;
+			else
+				valueInCents = 50;
+
+			centValuesPerCoinLabel.put(label, valueInCents);
+		}
+
+		return centValuesPerCoinLabel;
+	}
+
+	private int sumCoins(Map<Integer, Integer> classifiedCoins) {
+		int sum = 0;
+		for (Map.Entry<Integer, Integer> valueSet : classifiedCoins.entrySet()) {
+			sum += valueSet.getValue();
+		}
+		return sum;
+	}
+
+	// RUN
+
 	public void run(ImageProcessor ip) {
 		// Pre-Processing:
 		// from tests with Color Inspector: increased contrast (with brightness) leads to sharper edges to help with thresholding
 		// start with color again
 		ImagePlus imp = new ImagePlus("Initial Image", ip);
+
+		// save a copy for color analysis in Part 3 (before changes for segmentation)
+		ImagePlus impOriginal = new ImagePlus("Initial Image", ip);
 
 		ContrastEnhancer enh = new ContrastEnhancer();
 		enh.stretchHistogram(imp, 25);
@@ -409,7 +568,7 @@ public class CoinCounter_ implements PlugInFilter {
 
 		}
 
-		System.out.println("(Info:) Seed point for 1.1 reference region growing: " + xStartOfLongest + " " + yStartOfLongest);
+		//System.out.println("(Info:) Seed point for 1.1 reference region growing: " + xStartOfLongest + " " + yStartOfLongest);
 
 		// region growing
 		Point seedPoint = new Point(xStartOfLongest, yStartOfLongest);
@@ -458,7 +617,7 @@ public class CoinCounter_ implements PlugInFilter {
 		// the marker is 30 mm wide: this length was actually measured in 1.1 (longest) and can now be put to good use
 		// if the whole length in pixels represents 30 mm, we know what the equivalence between 1 mm and pixels is
 		double referenceScalingFactor = longest / 30.0; // 1 mm in pixels is equivalent to this value
-		System.out.println("referenceScalingFactor (ANSWER to 1.3): " + referenceScalingFactor);
+		System.out.println("referenceScalingFactor (ANSWER to Task 1.3): " + referenceScalingFactor);
 		// i.e. a length in pixels / referenceScalingFactor is its length in mm
 
 		/*
@@ -488,7 +647,80 @@ public class CoinCounter_ implements PlugInFilter {
 
 		show2DGrayscaleWithGlasbey(labeledImg, width, height);
 
+
+		/*
+		Part 3
+		 */
+
+		// approach
+		// classify according to diameter, separating three ways (smallest, medium, large) (2)
+		// but classify according to RGB ranges (cubes? 3D color space?) first (separating two ways, gold and bronze) (1)
+
+		// (1)
+		enh.stretchHistogram(impOriginal, -25); // performance better with this step (see preprocessing part)
+		Map<Integer, Integer[]> meanRGBPerLabel = getMeanRGBs(labeledImg, impOriginal);
+
+		Map<Integer, Integer> widthsPerLabelInMM = convertWidths(widthsPerLabel, referenceScalingFactor);
+
+		// to check
+		/*for (Map.Entry<Integer, Integer[]> meanSet : meanRGBPerLabel.entrySet()) {
+			int label = meanSet.getKey();
+			System.out.println(label + " - " + Arrays.toString(meanSet.getValue()) + " - " + widthsPerLabelInMM.get(label));
+		}*/
+
+		// for explanation of the approach taken here
+		/* outputs at this stage without contrast resetting
+		* {0=1, 1=288, 2=314, 3=212, 4=212, 5=287, 6=246, 7=202, 8=320, 9=274, 10=277} diameters (in pixels) per label (ANSWER 2 to Task 2.3)
+		[47, 53, 37]
+		[84, 60, 1]
+		[43, 12, 1]
+		[11, 3, 1]
+		[55, 2, 1]
+		[64, 44, 1]
+		[12, 2, 1]
+		[103, 83, 6]
+		[5, 4, 1]
+		[75, 13, 1]
+		[32, 4, 1]
+
+		* with contrast resetting (better):
+		* {0=1, 1=288, 2=314, 3=212, 4=212, 5=287, 6=246, 7=202, 8=320, 9=274, 10=277} diameters (in pixels) per label (ANSWER 2 to Task 2.3)
+0 - [102, 104, 99]
+1 - [113, 105, 72]
+2 - [100, 89, 56]
+3 - [89, 70, 53]
+4 - [104, 68, 48]
+5 - [107, 100, 67]
+6 - [84, 49, 35]
+7 - [119, 112, 81]
+8 - [71, 61, 36]
+9 - [110, 82, 62]
+10 - [94, 63, 45]
+		 */
+
+		// insight to realize (1): bronze color coins have a relatively high red mean
+		// analysis of the (only!) two sample images shows something like a factor 1.5
+		// the other thing is the diameters need to come in in mms (different resolutions between images)
+		//Map<Integer, Integer> widthsPerLabelInMM = convertWidths(widthsPerLabel, referenceScalingFactor);
+
+		Map<Integer, Integer> classifiedCoins = classifyCoins(widthsPerLabelInMM, meanRGBPerLabel); // in cents
+
+		// to check
+		/*for (Map.Entry<Integer, Integer> valueSet : classifiedCoins.entrySet()) {
+			int label = valueSet.getKey();
+			System.out.println(label + " - " + valueSet.getValue());
+		}*/
+
+		int finalSum = sumCoins(classifiedCoins);
+
+		int euros = finalSum / 100;
+		int cents = finalSum % 100;
+
+		System.out.printf("Final sum is %d euro%s and %d cent%s (%d,%d EURO) (ANSWER to Task 3) %n", euros, euros > 1 ? "s" : "", cents, cents > 1 ? "s" : "", euros, cents);
+
 	} //run
+
+	// SHOWABOUT
 
 	void showAbout() {
 		IJ.showMessage("About Template_...",
