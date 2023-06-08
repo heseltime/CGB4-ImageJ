@@ -15,7 +15,8 @@ In-code, as specified.
 
 ### image I/O (coins4 example: correctly classified)
 
-![coins4-1](../readme-imgs/coins4-1.png)
+![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/5963aab9-aac7-4d83-8320-a865f72ab87c)
+
 
 ### console I/O (coins4 example: correctly classified)
 
