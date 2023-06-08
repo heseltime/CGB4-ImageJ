@@ -34,7 +34,7 @@ Final sum is 1 euro and 64 cents (1,64 EURO) (ANSWER to Task 3)
 ![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/11dd963c-f1f4-40fa-a3f4-2909715aa6f3)
 ![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/f973225a-d5e2-4443-bada-ba3e52858b11)
 ![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/62543b2d-2872-4f02-91ff-74d5b159d90a)
-
+![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/706b27c2-5630-4b43-9a6b-20f3299bacc2)
 
 ### console I/O (coins5 example: correctly classified)
 
