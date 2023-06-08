@@ -26,7 +26,19 @@ In-code, as specified.
 referenceScalingFactor (ANSWER to Task 1.3): 14.266666666666667
 10 labels applied (ANSWER 1 to Task 2.3)
 {0=1, 1=288, 2=314, 3=212, 4=212, 5=287, 6=246, 7=202, 8=320, 9=274, 10=277} diameters (in pixels) per label (ANSWER 2 to Task 2.3)
-Final sum is 1 euro and 74 cents (1,74 EURO) (ANSWER to Task 3)
+Final sum is 1 euro and 64 cents (1,64 EURO) (ANSWER to Task 3)
+```
+
+### image I/O (coins5 example: correctly classified)
+
+
+### console I/O (coins5 example: correctly classified)
+
+```
+referenceScalingFactor (ANSWER to 1.3): 12.4
+14 labels applied (ANSWER 1 to Task 2.3)
+{0=1, 1=265, 2=198, 3=292, 4=226, 5=252, 6=265, 7=201, 8=287, 9=262, 10=237, 11=163, 12=265, 13=195, 14=254} diameters (in pixels) per label (ANSWER 2 to Task 2.3)
+Final sum is 1 euro and 91 cents (1,91 EURO) (ANSWER to Task 3) 
 ```
 
 ### sources for further reading

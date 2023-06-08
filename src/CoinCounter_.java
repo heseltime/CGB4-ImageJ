@@ -458,20 +458,23 @@ public class CoinCounter_ implements PlugInFilter {
 
 			int valueInCents;
 
-			if (looksBronze && diameter <= 16)
-				valueInCents = 1;
-			else if (looksBronze && diameter < 19)
-				valueInCents = 2;
-			else if (looksBronze)
-				valueInCents = 5;
-			else if (!looksBronze && diameter <= 19)
-				valueInCents = 10;
-			else if (!looksBronze && diameter <= 21)
-				valueInCents = 20;
-			else
-				valueInCents = 50;
+			// in case artefact gets through, one more plausibility check
+			if (diameter > 10) {
+				if (looksBronze && diameter <= 16)
+					valueInCents = 1;
+				else if (looksBronze && diameter < 19)
+					valueInCents = 2;
+				else if (looksBronze)
+					valueInCents = 5;
+				else if (!looksBronze && diameter <= 19)
+					valueInCents = 10;
+				else if (!looksBronze && diameter <= 21)
+					valueInCents = 20;
+				else
+					valueInCents = 50;
 
-			centValuesPerCoinLabel.put(label, valueInCents);
+				centValuesPerCoinLabel.put(label, valueInCents);
+			}
 		}
 
 		return centValuesPerCoinLabel;
@@ -568,7 +571,7 @@ public class CoinCounter_ implements PlugInFilter {
 
 		}
 
-		//System.out.println("(Info:) Seed point for 1.1 reference region growing: " + xStartOfLongest + " " + yStartOfLongest);
+		System.out.println("(Info:) Seed point for 1.1 reference region growing: " + xStartOfLongest + " " + yStartOfLongest);
 
 		// region growing
 		Point seedPoint = new Point(xStartOfLongest, yStartOfLongest);
@@ -617,7 +620,7 @@ public class CoinCounter_ implements PlugInFilter {
 		// the marker is 30 mm wide: this length was actually measured in 1.1 (longest) and can now be put to good use
 		// if the whole length in pixels represents 30 mm, we know what the equivalence between 1 mm and pixels is
 		double referenceScalingFactor = longest / 30.0; // 1 mm in pixels is equivalent to this value
-		System.out.println("referenceScalingFactor (ANSWER to Task 1.3): " + referenceScalingFactor);
+		System.out.println("referenceScalingFactor (ANSWER to 1.3): " + referenceScalingFactor);
 		// i.e. a length in pixels / referenceScalingFactor is its length in mm
 
 		/*
