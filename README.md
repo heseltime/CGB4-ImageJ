@@ -17,6 +17,7 @@ In-code, as specified.
 
 ![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/5963aab9-aac7-4d83-8320-a865f72ab87c)
 ![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/451149f4-7db9-414d-bf9c-0b2ebee307fb)
+![image](https://github.com/heseltime/CGB4-ImageJ/assets/66922223/c2310f30-3fc6-4ed1-9b34-eb4ac50f7038)
 
 
 
